@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Spaceship Battle</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle, #1e1e2f, #000);
+            font-family: 'Courier New', Courier, monospace;
+            color: white;
+            text-align: center;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 18px;
+        }
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            transition: opacity 0.5s ease-in-out;
+        }
+        #game-over h1 {
+            font-size: 48px;
+            margin: 10px 0;
+        }
+        #game-over button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background: #00aaff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <div id="game-over">
+        <h1>Game Over!</h1>
+        <p>Your final score: <span id="final-score">0</span></p>
+        <p>Press <strong>R</strong> to Restart</p>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let gameOver = false;
+        let cooldown = false;
+
+        const stars = Array.from({ length: 100 }, () => ({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            radius: Math.random() * 2 + 1,
+            speed: Math.random() * 0.5 + 0.5
+        }));
+
+        function drawStars() {
+            ctx.fillStyle = "white";
+            stars.forEach(star => {
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fill();
+                star.y += star.speed;
+                if (star.y > canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * canvas.width;
+                }
+            });
+        }
+
+        const spaceship = {
+            x: canvas.width / 2,
+            y: canvas.height - 60,
+            width: 40,
+            height: 40,
+            color: "#00ff00",
+            speed: 5
+        };
+
+        const bullets = [];
+        const enemies = [];
+        const keys = {};
+
+        window.addEventListener("keydown", (e) => {
+            keys[e.key] = true;
+            console.log(`Keydown: ${e.key}`);
+
+            // Restart the game if "R" is pressed during game-over state
+            if (gameOver && e.key.toLowerCase() === "r") {
+                restartGame();
+            }
+        });
+        window.addEventListener("keyup", (e) => {
+            keys[e.key] = false;
+            console.log(`Keyup: ${e.key}`);
+        });
+        window.addEventListener("resize", () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            spaceship.x = canvas.width / 2;
+            console.log("Canvas resized");
+        });
+
+        function drawSpaceship() {
+            ctx.fillStyle = spaceship.color;
+            ctx.fillRect(spaceship.x, spaceship.y, spaceship.width, spaceship.height);
+        }
+
+        function moveSpaceship() {
+            if (keys["ArrowLeft"] && spaceship.x > 0) {
+                spaceship.x -= spaceship.speed;
+                console.log("Spaceship moved left");
+            }
+            if (keys["ArrowRight"] && spaceship.x + spaceship.width < canvas.width) {
+                spaceship.x += spaceship.speed;
+                console.log("Spaceship moved right");
+            }
+            if (keys["ArrowUp"] && spaceship.y > 0) {
+                spaceship.y -= spaceship.speed;
+                console.log("Spaceship moved up");
+            }
+            if (keys["ArrowDown"] && spaceship.y + spaceship.height < canvas.height) {
+                spaceship.y += spaceship.speed;
+                console.log("Spaceship moved down");
+            }
+            if (keys[" "] && !cooldown) {
+                shoot();
+                cooldown = true;
+                console.log("Bullet fired");
+                setTimeout(() => cooldown = false, 200);
+            }
+        }
+
+        function shoot() {
+            bullets.push({
+                x: spaceship.x + spaceship.width / 2 - 2,
+                y: spaceship.y,
+                width: 4,
+                height: 10,
+                color: "#ff0000",
+                speed: 8
+            });
+            console.log("Bullet created", bullets[bullets.length - 1]);
+        }
+
+        function drawBullets() {
+            bullets.forEach((bullet, index) => {
+                bullet.y -= bullet.speed;
+                ctx.fillStyle = bullet.color;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+
+                if (bullet.y < 0) {
+                    bullets.splice(index, 1);
+                    console.log("Bullet removed");
+                }
+            });
+        }
+
+        function spawnEnemies() {
+            const difficultyFactor = Math.min(1, score / 1000);
+            if (Math.random() < 0.02 + difficultyFactor * 0.02) {
+                const enemy = {
+                    x: Math.random() * (canvas.width - 40),
+                    y: -40,
+                    width: 40,
+                    height: 40,
+                    color: "#ff00ff",
+                    speed: 3 + difficultyFactor * 2 + score / 500 // Gradual speed increase based on score
+                };
+                enemies.push(enemy);
+                console.log("Enemy spawned", enemy);
+            }
+        }
+
+        function drawEnemies() {
+            enemies.forEach((enemy, index) => {
+                enemy.y += enemy.speed;
+                ctx.fillStyle = enemy.color;
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+                if (enemy.y > canvas.height) {
+                    enemies.splice(index, 1);
+                    console.log("Enemy removed");
+                }
+            });
+        }
+
+        function checkCollisions() {
+            enemies.forEach((enemy, enemyIndex) => {
+                bullets.forEach((bullet, bulletIndex) => {
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y) {
+                        enemies.splice(enemyIndex, 1);
+                        bullets.splice(bulletIndex, 1);
+                        score += 10;
+                        document.getElementById("score").textContent = `Score: ${score}`;
+                        console.log("Enemy hit");
+                    }
+                });
+
+                if (spaceship.x < enemy.x + enemy.width &&
+                    spaceship.x + spaceship.width > enemy.x &&
+                    spaceship.y < enemy.y + enemy.height &&
+                    spaceship.y + spaceship.height > enemy.y) {
+                    console.log("Spaceship hit");
+                    endGame();
+                }
+            });
+        }
+
+        function endGame() {
+            gameOver = true;
+            document.getElementById("final-score").textContent = score;
+            document.getElementById("game-over").style.display = "block";
+            console.log("Game Over. Final Score:", score);
+        }
+
+        function restartGame() {
+            score = 0;
+            gameOver = false;
+            enemies.length = 0;
+            bullets.length = 0;
+            spaceship.x = canvas.width / 2;
+            spaceship.y = canvas.height - 60;
+            document.getElementById("score").textContent = `Score: ${score}`;
+            document.getElementById("game-over").style.display = "none";
+            console.log("Game restarted");
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop() {
+            if (gameOver) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawStars();
+            drawSpaceship();
+            moveSpaceship();
+            drawBullets();
+            spawnEnemies();
+            drawEnemies();
+            checkCollisions();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
